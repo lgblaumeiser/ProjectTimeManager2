@@ -3,32 +3,20 @@
 package de.lgblaumeiser.ptm.service
 
 import de.lgblaumeiser.ptm.service.model.Booking
-import de.lgblaumeiser.ptm.service.store.Store
+import de.lgblaumeiser.ptm.service.store.BookingStore
 import java.time.LocalDate
 import java.time.LocalTime
 
-class BookingService(val store: Store<Booking>) {
+class BookingService(val store: BookingStore) {
     fun getBookings(user: String) = store
         .retrieveAll()
         .filter { sameUser(it.user, user) }
         .sortedWith(compareBy<Booking> { it.starttime }.thenBy { it.bookingday })
 
-    fun getBookings(user: String, startday: String, endday: String? = null): List<Booking> = store
-        .retrieveByProperty("bookingday", computeDays(startday, endday))
+    fun getBookings(user: String, startday: LocalDate, endday: LocalDate? = null): List<Booking> = store
+        .retrieveByDate(startday, endday)
         .filter { sameUser(it.user, user) }
         .sortedWith(compareBy<Booking> { it.starttime }.thenBy { it.bookingday })
-
-    private fun computeDays(startday: String, endday: String?): List<LocalDate> {
-        val parsedstartday = LocalDate.parse(startday)
-        val parsedendday = LocalDate.parse(endday) ?: parsedstartday.plusDays(1L)
-        val listofdays = mutableListOf<LocalDate>()
-        var currentday = parsedstartday
-        do {
-            listofdays.add(currentday)
-            currentday = currentday.plusDays(1L)
-        } while (currentday.isBefore(parsedendday))
-        return listofdays
-    }
 
     fun getBookingById(user: String, id: Long) = store
         .retrieveById(id)
@@ -42,11 +30,12 @@ class BookingService(val store: Store<Booking>) {
         activity: Long,
         comment: String = ""
     ): Long {
-        retrieveOpenBooking(user, bookingday)?.let { changeBooking(id = it.id, user = it.user, endtime = starttime) }
+        val day = LocalDate.parse(bookingday)
+        retrieveOpenBooking(user, day)?.let { changeBooking(id = it.id, user = it.user, endtime = starttime) }
         return store.create(
             Booking(
                 user = user,
-                bookingday = LocalDate.parse(bookingday),
+                bookingday = day,
                 starttime = LocalTime.parse(starttime),
                 endtime = endtime?.let { LocalTime.parse(endtime) },
                 activity = activity,
@@ -55,7 +44,7 @@ class BookingService(val store: Store<Booking>) {
         )
     }
 
-    private fun retrieveOpenBooking(user: String, bookingday: String) =
+    private fun retrieveOpenBooking(user: String, bookingday: LocalDate) =
         getBookings(user = user, startday = bookingday).find { it.endtime == null }
 
 
